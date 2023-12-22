@@ -9,7 +9,7 @@
     
         <meta name="date" content="2023-12-19" />
     
-    <title>Applying Grid Search to Kernel SVM</title>
+    <title>Applying K-Fold Cross Validation to Kernel SVM</title>
 
         <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -1265,11 +1265,13 @@ margin-left: 0 !important;
          
    
         
-      <h1 class="title">Applying Grid Search to Kernel SVM</h1>
+      <h1 class="title">Applying K-Fold Cross Validation to Kernel
+SVM</h1>
       
          <!-- readthedown authors -->
    <div id="sidebar">
-    <h2><a href="#content">Applying Grid Search to Kernel SVM</a></h2>
+    <h2><a href="#content">Applying K-Fold Cross Validation to Kernel
+SVM</a></h2>
     <div id="toc">
       
     </div>
@@ -1285,17 +1287,23 @@ margin-left: 0 !important;
    
 <!-- Don't indent these lines or it will mess pre blocks indentation --> 
 <div id="main">
-<p>This is a simple demonstration of applying the Grid Search method to
-find the optimal parameters for a Kernel SVM model.</p>
-<div id="grid-search" class="section level3">
-<h3>Grid Search</h3>
-<p>There are 2 types of ML parameters, those we choose and those the
-model learns for itself. Parameters we choose/specify are known as
-hyperparameters (ex. the kernel for SVM). Grid search finds the optimal
-values for the hyperparameters, which makes a better model. Here we will
-use the caret package to both build and grid-search optimize our SVM.
-Note: caret is probably the best package for ML, you can build any model
-and optimize it at the same time.</p>
+<p>In this simple example we will apply K-Fold Cross Validation to a
+Kernel SVM model</p>
+<div id="the-variance-problem" class="section level3">
+<h3>The Variance Problem</h3>
+<p>A simple method for evaluating model performance is to compare its
+output to the test set with a confusion matrix. Adding up correct
+predictions and dividing that by the total predictions will give the
+model’s accuracy. However, if you apply the same model to a different
+dataset, a confusion matrix with different values will be produced, and
+you will get a different value for your model’s accuracy as a result.
+This is called the Variance Problem. K-Fold Cross Validation is an
+alternate method that splits the training set into 10 iterations each
+with 10 folds (when k=10), then trains the model on 9 of those folds.
+The model is then tested on the last remaining fold. This repeats for
+all 10 iterations, but a different fold is chosen as the test set each
+time. This produces a much more relevant analysis of the model’s
+performance.</p>
 </div>
 <div id="our-data" class="section level3">
 <h3>Our Data</h3>
@@ -1310,6 +1318,99 @@ means it was.</p>
 <p>Importing the dataset:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>dataset <span class="ot">=</span> <span class="fu">read.csv</span>(<span class="st">&#39;Social_Network_Ads.csv&#39;</span>)</span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>dataset <span class="ot">=</span> dataset[<span class="dv">3</span><span class="sc">:</span><span class="dv">5</span>]</span></code></pre></div>
+<p>Encoding the target feature (Purchased) as factor:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>dataset<span class="sc">$</span>Purchased <span class="ot">=</span> <span class="fu">factor</span>(dataset<span class="sc">$</span>Purchased, <span class="at">levels =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>))</span></code></pre></div>
+<p>Splitting the dataset into the Training set and Test set:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&#39;caTools&#39;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">library</span>(caTools)</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>split <span class="ot">=</span> <span class="fu">sample.split</span>(dataset<span class="sc">$</span>Purchased, <span class="at">SplitRatio =</span> <span class="fl">0.75</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>training_set <span class="ot">=</span> <span class="fu">subset</span>(dataset, split <span class="sc">==</span> <span class="cn">TRUE</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>test_set <span class="ot">=</span> <span class="fu">subset</span>(dataset, split <span class="sc">==</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<p>Feature Scaling:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>training_set[<span class="sc">-</span><span class="dv">3</span>] <span class="ot">=</span> <span class="fu">scale</span>(training_set[<span class="sc">-</span><span class="dv">3</span>])</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>test_set[<span class="sc">-</span><span class="dv">3</span>] <span class="ot">=</span> <span class="fu">scale</span>(test_set[<span class="sc">-</span><span class="dv">3</span>])</span></code></pre></div>
+<p>Fitting Kernel SVM to the Training set:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&#39;e1071&#39;</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">library</span>(e1071)</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>classifier <span class="ot">=</span> <span class="fu">svm</span>(<span class="at">formula =</span> Purchased <span class="sc">~</span> .,</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>                 <span class="at">data =</span> training_set,</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>                 <span class="at">type =</span> <span class="st">&#39;C-classification&#39;</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>                 <span class="at">kernel =</span> <span class="st">&#39;radial&#39;</span>)</span></code></pre></div>
+<p>If you go here: <a href="https://topepo.github.io/caret/available-models.html" class="uri">https://topepo.github.io/caret/available-models.html</a> and
+click 6 in the sidebar you can see available models within the caret
+package we will be using ‘Support Vector Machines with Radial Basis
+Function Kernel’ the 2nd column on this page shows the method we input
+for the train() function, which is svmRadial</p>
+<p>Predicting the Test set results:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>y_pred <span class="ot">=</span> <span class="fu">predict</span>(classifier, <span class="at">newdata =</span> test_set[<span class="sc">-</span><span class="dv">3</span>])</span></code></pre></div>
+<p>Making the Confusion Matrix to evaluate the predictions:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>cm <span class="ot">=</span> <span class="fu">table</span>(test_set[, <span class="dv">3</span>], y_pred)</span></code></pre></div>
+<p>Applying k-Fold Cross Validation</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&#39;caret&#39;</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">library</span>(caret)</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>folds <span class="ot">=</span> <span class="fu">createFolds</span>(training_set<span class="sc">$</span>Purchased, <span class="at">k =</span> <span class="dv">10</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>cv <span class="ot">=</span> <span class="fu">lapply</span>(folds, <span class="cf">function</span>(x) {</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  training_fold <span class="ot">=</span> training_set[<span class="sc">-</span>x, ]</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  test_fold <span class="ot">=</span> training_set[x, ]</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  classifier <span class="ot">=</span> <span class="fu">svm</span>(<span class="at">formula =</span> Purchased <span class="sc">~</span> .,</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>                   <span class="at">data =</span> training_fold,</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>                   <span class="at">type =</span> <span class="st">&#39;C-classification&#39;</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>                   <span class="at">kernel =</span> <span class="st">&#39;radial&#39;</span>)</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>  y_pred <span class="ot">=</span> <span class="fu">predict</span>(classifier, <span class="at">newdata =</span> test_fold[<span class="sc">-</span><span class="dv">3</span>])</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  cm <span class="ot">=</span> <span class="fu">table</span>(test_fold[, <span class="dv">3</span>], y_pred)</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  accuracy <span class="ot">=</span> (cm[<span class="dv">1</span>,<span class="dv">1</span>] <span class="sc">+</span> cm[<span class="dv">2</span>,<span class="dv">2</span>]) <span class="sc">/</span> (cm[<span class="dv">1</span>,<span class="dv">1</span>] <span class="sc">+</span> cm[<span class="dv">2</span>,<span class="dv">2</span>] <span class="sc">+</span> cm[<span class="dv">1</span>,<span class="dv">2</span>] <span class="sc">+</span> cm[<span class="dv">2</span>,<span class="dv">1</span>])</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  <span class="fu">return</span>(accuracy)</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>})</span></code></pre></div>
+<p>We specify the dependent variable (Purchased) for which we will
+generate 10 folds (k). The cv object will apply our cross validation
+function to our folds we just created. In the function(x) x is all the
+observations for each one of the 10 test folds. The purpose of the
+function is to compute the accuracy of the model’s predictions for each
+fold. The training_set[-x, ] is the whole training set without the fold
+x (the comma specifies all columns should be included). The test_fold is
+the training set for that particular fold (x). The classifier is the
+kernel svm model. We are training it on the training fold here. The
+accuracy = correct predictions / total predictions, here we use the
+results of the confusion matrix where1,1 and 2,2 are the indices of the
+correct predictions and 1,2 and 2,1 are indices of incorrect
+predictions, we will get 10 accuracies from this.</p>
+<p>After running lines from here up, we get cv which is our list of 10
+accuracies by fold. It looks pretty good, in the 80’s-100% for almost
+all folds, 1 in the 70’s.</p>
+<p>Calculating Relevant Accuracy:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>accuracy <span class="ot">=</span> <span class="fu">mean</span>(<span class="fu">as.numeric</span>(cv))</span></code></pre></div>
+<p>This is our relevant accuracy (~91%), the average of the 10
+accuracies from our folds</p>
+<p>Visualizing the Training set results:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">library</span>(ElemStatLearn)</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>set <span class="ot">=</span> training_set</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>X1 <span class="ot">=</span> <span class="fu">seq</span>(<span class="fu">min</span>(set[, <span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">1</span>, <span class="fu">max</span>(set[, <span class="dv">1</span>]) <span class="sc">+</span> <span class="dv">1</span>, <span class="at">by =</span> <span class="fl">0.01</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>X2 <span class="ot">=</span> <span class="fu">seq</span>(<span class="fu">min</span>(set[, <span class="dv">2</span>]) <span class="sc">-</span> <span class="dv">1</span>, <span class="fu">max</span>(set[, <span class="dv">2</span>]) <span class="sc">+</span> <span class="dv">1</span>, <span class="at">by =</span> <span class="fl">0.01</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>grid_set <span class="ot">=</span> <span class="fu">expand.grid</span>(X1, X2)</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a><span class="fu">colnames</span>(grid_set) <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;Age&#39;</span>, <span class="st">&#39;EstimatedSalary&#39;</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>y_grid <span class="ot">=</span> <span class="fu">predict</span>(classifier, <span class="at">newdata =</span> grid_set)</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a><span class="fu">plot</span>(set[, <span class="sc">-</span><span class="dv">3</span>],</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>     <span class="at">main =</span> <span class="st">&#39;Kernel SVM (Training set)&#39;</span>,</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&#39;Age&#39;</span>, <span class="at">ylab =</span> <span class="st">&#39;Estimated Salary&#39;</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">range</span>(X1), <span class="at">ylim =</span> <span class="fu">range</span>(X2))</span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a><span class="fu">contour</span>(X1, X2, <span class="fu">matrix</span>(<span class="fu">as.numeric</span>(y_grid), <span class="fu">length</span>(X1), <span class="fu">length</span>(X2)), <span class="at">add =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a><span class="fu">points</span>(grid_set, <span class="at">pch =</span> <span class="st">&#39;.&#39;</span>, <span class="at">col =</span> <span class="fu">ifelse</span>(y_grid <span class="sc">==</span> <span class="dv">1</span>, <span class="st">&#39;dodgerblue&#39;</span>, <span class="st">&#39;salmon&#39;</span>))</span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a><span class="fu">points</span>(set, <span class="at">pch =</span> <span class="dv">21</span>, <span class="at">bg =</span> <span class="fu">ifelse</span>(set[, <span class="dv">3</span>] <span class="sc">==</span> <span class="dv">1</span>, <span class="st">&#39;dodgerblue3&#39;</span>, <span class="st">&#39;salmon3&#39;</span>))</span></code></pre></div>
+<p>Visualizing the Test set results:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">library</span>(ElemStatLearn)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>set <span class="ot">=</span> test_set</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>X1 <span class="ot">=</span> <span class="fu">seq</span>(<span class="fu">min</span>(set[, <span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">1</span>, <span class="fu">max</span>(set[, <span class="dv">1</span>]) <span class="sc">+</span> <span class="dv">1</span>, <span class="at">by =</span> <span class="fl">0.01</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>X2 <span class="ot">=</span> <span class="fu">seq</span>(<span class="fu">min</span>(set[, <span class="dv">2</span>]) <span class="sc">-</span> <span class="dv">1</span>, <span class="fu">max</span>(set[, <span class="dv">2</span>]) <span class="sc">+</span> <span class="dv">1</span>, <span class="at">by =</span> <span class="fl">0.01</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>grid_set <span class="ot">=</span> <span class="fu">expand.grid</span>(X1, X2)</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="fu">colnames</span>(grid_set) <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;Age&#39;</span>, <span class="st">&#39;EstimatedSalary&#39;</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>y_grid <span class="ot">=</span> <span class="fu">predict</span>(classifier, <span class="at">newdata =</span> grid_set)</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="fu">plot</span>(set[, <span class="sc">-</span><span class="dv">3</span>], <span class="at">main =</span> <span class="st">&#39;Kernel SVM (Test set)&#39;</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&#39;Age&#39;</span>, <span class="at">ylab =</span> <span class="st">&#39;Estimated Salary&#39;</span>,</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">range</span>(X1), <span class="at">ylim =</span> <span class="fu">range</span>(X2))</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a><span class="fu">contour</span>(X1, X2, <span class="fu">matrix</span>(<span class="fu">as.numeric</span>(y_grid), <span class="fu">length</span>(X1), <span class="fu">length</span>(X2)), <span class="at">add =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="fu">points</span>(grid_set, <span class="at">pch =</span> <span class="st">&#39;.&#39;</span>, <span class="at">col =</span> <span class="fu">ifelse</span>(y_grid <span class="sc">==</span> <span class="dv">1</span>, <span class="st">&#39;dodgerblue&#39;</span>, <span class="st">&#39;salmon&#39;</span>))</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="fu">points</span>(set, <span class="at">pch =</span> <span class="dv">21</span>, <span class="at">bg =</span> <span class="fu">ifelse</span>(set[, <span class="dv">3</span>] <span class="sc">==</span> <span class="dv">1</span>, <span class="st">&#39;dodgerblue3&#39;</span>, <span class="st">&#39;salmon3&#39;</span>))</span></code></pre></div>
 </div>
 </div>
 

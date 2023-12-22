@@ -1,15 +1,15 @@
 ---
-title: "Applying Grid Search to Kernel SVM"
+title: "Applying K-Fold Cross Validation to Kernel SVM"
 author: "Student"
 date: "2023-12-19"
 output:
   html_document: rmdformats::readthedown
   'html_document: rmdformats::readthedown': default
 ---
-This is a simple demonstration of applying the Grid Search method to find the optimal parameters for a Kernel SVM model. 
+In this simple example we will apply K-Fold Cross Validation to a Kernel SVM model
 
-### Grid Search
-There are 2 types of ML parameters, those we choose and those the model learns for itself. Parameters we choose/specify are known as hyperparameters (ex. the kernel for SVM). Grid search finds the optimal values for the hyperparameters, which makes a better model. Here we will use the caret package to both build and grid-search optimize our SVM. Note: caret is probably the best package for ML, you can build any model and optimize it at the same time.
+### The Variance Problem
+A simple method for evaluating model performance is to compare its output to the test set with a confusion matrix. Adding up correct predictions and dividing that by the total predictions will give the model's accuracy. However, if you apply the same model to a different dataset, a confusion matrix with different values will be produced, and you will get a different value for your model's accuracy as a result. This is called the Variance Problem. K-Fold Cross Validation is an alternate method that splits the training set into 10 iterations each with 10 folds (when k=10), then trains the model on 9 of those folds. The model is then tested on the last remaining fold. This repeats for all 10 iterations, but a different fold is chosen as the test set each time. This produces a much more relevant analysis of the model's performance.
 
 ### Our Data
 We will be using a data set that describes whether or not a certain user purchased a product after being shown an ad for it. It includes the following categories: User ID, Gender, Age, EstimatedSalary, Purchased where Purchased = 0 means the item was not purchased and Purchased=1 means it was. 
@@ -19,4 +19,111 @@ Importing the dataset:
 ```{r echo=TRUE, eval=FALSE}
 dataset = read.csv('Social_Network_Ads.csv')
 dataset = dataset[3:5]
+```
+
+Encoding the target feature (Purchased) as factor:
+```{r setup, include=TRUE, eval=FALSE}
+dataset$Purchased = factor(dataset$Purchased, levels = c(0, 1))
+```
+
+Splitting the dataset into the Training set and Test set:
+```{r echo=TRUE, eval=FALSE}
+install.packages('caTools')
+library(caTools)
+set.seed(123)
+split = sample.split(dataset$Purchased, SplitRatio = 0.75)
+training_set = subset(dataset, split == TRUE)
+test_set = subset(dataset, split == FALSE)
+```
+
+Feature Scaling:
+```{r echo=TRUE, eval=FALSE}
+training_set[-3] = scale(training_set[-3])
+test_set[-3] = scale(test_set[-3])
+```
+
+Fitting Kernel SVM to the Training set:
+```{r echo=TRUE, eval=FALSE}
+install.packages('e1071')
+library(e1071)
+classifier = svm(formula = Purchased ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'radial')
+```
+If you go here: https://topepo.github.io/caret/available-models.html and click 6 in the sidebar you can see available models within the caret package we will be using 'Support Vector Machines with Radial Basis Function Kernel' the 2nd column on this page shows the method we input for the train() function, which is svmRadial
+
+Predicting the Test set results:
+```{r echo=TRUE, eval=FALSE}
+y_pred = predict(classifier, newdata = test_set[-3])
+```
+
+Making the Confusion Matrix to evaluate the predictions:
+```{r echo=TRUE, eval=FALSE}
+cm = table(test_set[, 3], y_pred)
+```
+
+Applying k-Fold Cross Validation
+```{r echo=TRUE, eval=FALSE}
+install.packages('caret')
+library(caret)
+folds = createFolds(training_set$Purchased, k = 10)
+cv = lapply(folds, function(x) {
+  training_fold = training_set[-x, ]
+  test_fold = training_set[x, ]
+  classifier = svm(formula = Purchased ~ .,
+                   data = training_fold,
+                   type = 'C-classification',
+                   kernel = 'radial')
+  y_pred = predict(classifier, newdata = test_fold[-3])
+  cm = table(test_fold[, 3], y_pred)
+  accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+  return(accuracy)
+})
+```
+We specify the dependent variable (Purchased) for which we will generate 10 folds (k). The cv object will apply our cross validation function to our folds we just created. In the function(x) x is all the observations for each one of the 10 test folds. The purpose of the function is to compute the accuracy of the model's predictions for each fold. The training_set[-x, ] is the whole training set without the fold x (the comma specifies all columns should be included). The test_fold is the training set for that particular fold (x). The classifier is the kernel svm model. We are training it on the training fold here. The accuracy = correct predictions / total predictions, here we use the results of the confusion matrix where1,1 and 2,2 are the indices of the correct predictions and 1,2 and 2,1 are indices of incorrect predictions, we will get 10 accuracies from this.
+
+
+After running lines from here up, we get cv which is our list of 10 accuracies by fold.
+It looks pretty good, in the 80's-100% for almost all folds, 1 in the 70's.
+
+Calculating Relevant Accuracy:
+```{r echo=TRUE, eval=FALSE}
+accuracy = mean(as.numeric(cv))
+```
+This is our relevant accuracy (~91%), the average of the 10 accuracies from our folds
+
+Visualizing the Training set results:
+```{r echo=TRUE, eval=FALSE}
+library(ElemStatLearn)
+set = training_set
+X1 = seq(min(set[, 1]) - 1, max(set[, 1]) + 1, by = 0.01)
+X2 = seq(min(set[, 2]) - 1, max(set[, 2]) + 1, by = 0.01)
+grid_set = expand.grid(X1, X2)
+colnames(grid_set) = c('Age', 'EstimatedSalary')
+y_grid = predict(classifier, newdata = grid_set)
+plot(set[, -3],
+     main = 'Kernel SVM (Training set)',
+     xlab = 'Age', ylab = 'Estimated Salary',
+     xlim = range(X1), ylim = range(X2))
+contour(X1, X2, matrix(as.numeric(y_grid), length(X1), length(X2)), add = TRUE)
+points(grid_set, pch = '.', col = ifelse(y_grid == 1, 'dodgerblue', 'salmon'))
+points(set, pch = 21, bg = ifelse(set[, 3] == 1, 'dodgerblue3', 'salmon3'))
+```
+
+Visualizing the Test set results:
+```{r echo=TRUE, eval=FALSE}
+library(ElemStatLearn)
+set = test_set
+X1 = seq(min(set[, 1]) - 1, max(set[, 1]) + 1, by = 0.01)
+X2 = seq(min(set[, 2]) - 1, max(set[, 2]) + 1, by = 0.01)
+grid_set = expand.grid(X1, X2)
+colnames(grid_set) = c('Age', 'EstimatedSalary')
+y_grid = predict(classifier, newdata = grid_set)
+plot(set[, -3], main = 'Kernel SVM (Test set)',
+     xlab = 'Age', ylab = 'Estimated Salary',
+     xlim = range(X1), ylim = range(X2))
+contour(X1, X2, matrix(as.numeric(y_grid), length(X1), length(X2)), add = TRUE)
+points(grid_set, pch = '.', col = ifelse(y_grid == 1, 'dodgerblue', 'salmon'))
+points(set, pch = 21, bg = ifelse(set[, 3] == 1, 'dodgerblue3', 'salmon3'))
 ```
