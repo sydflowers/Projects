@@ -1,2 +1,2 @@
 # Projects
-A short description
+Storing ML projects and their datasets
