@@ -2,7 +2,7 @@
 title: "Applying Grid Search to Kernel SVM"
 author: "Student"
 date: "2023-12-19"
-output: html_document
+output: rmdformats::readthedown
 ---
 This is a simple demonstration of applying the Grid Search method to find the optimal parameters for a Kernel SVM model. 
 
