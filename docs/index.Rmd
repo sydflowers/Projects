@@ -11,7 +11,7 @@ In this simple example we will apply K-Fold Cross Validation to a Kernel SVM mod
 ### The Variance Problem
 A simple method for evaluating model performance is to compare its output to the test set with a confusion matrix. Adding up correct predictions and dividing that by the total predictions will give the model's accuracy. However, if you apply the same model to a different dataset, a confusion matrix with different values will be produced, and you will get a different value for your model's accuracy as a result. This is called the Variance Problem. K-Fold Cross Validation is an alternate method that splits the training set into 10 iterations each with 10 folds (when k=10), then trains the model on 9 of those folds. The model is then tested on the last remaining fold. This repeats for all 10 iterations, but a different fold is chosen as the test set each time. This produces a much more relevant analysis of the model's performance.
 
-![K-Fold Cross Validation Visualization](docs/assets/KFold Cross Validation.png)
+![K-Fold Cross Validation Visualization](https://github.com/sydflowers/Projects/blob/main/docs/assets/KFold Cross Validation.png)
 
 ### Our Data
 We will be using a data set that describes whether or not a certain user purchased a product after being shown an ad for it. It includes the following categories: User ID, Gender, Age, EstimatedSalary, Purchased where Purchased = 0 means the item was not purchased and Purchased=1 means it was. 
